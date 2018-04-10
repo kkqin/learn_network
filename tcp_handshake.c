@@ -1,6 +1,7 @@
 #include <libnet.h>
 #include <errno.h>
 #include <pcap.h>
+#include <pthread.h> 
 
 void 
 recv_packet();
@@ -11,9 +12,9 @@ my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packer)
 int 
 main(int argc, char **argv)
 {
-	if(argc != 3)
+	if(argc != 4)
 	{
-		printf("usage:%s dst_ip dst_port\n", argv[0]);
+		printf("usage:%s dst_ip dst_port src_ip\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
 
@@ -65,7 +66,7 @@ main(int argc, char **argv)
 			libnet_get_prand(LIBNET_PR8),			/* TTL */
 			IPPROTO_TCP,					/* protocol */
 			0,						/* checksum */
-			src_ip = libnet_get_prand(LIBNET_PRu32),	/* source IP */
+			src_ip = inet_addr(argv[3]),			/* source IP */
 			dst_ip,						/* destination IP */
 			NULL,						/* payload */
 			0,						/* payload size */
@@ -78,6 +79,12 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
+	pthread_t recv;
+	if(pthread_create(&recv, NULL, recv_packet, NULL) == -1)
+	{
+		fprintf(stderr, "pthread_create() error\n");
+		exit(EXIT_FAILURE);
+	}
 
 	int res = libnet_write(l);
 	if(res == -1)
@@ -86,13 +93,15 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
+	pthread_join(recv, NULL);
+
         printf("%15s:%5d ------> %15s:%5d\n", 
 	libnet_addr2name4(src_ip, 1),
      	ntohs(src_prt),
      	libnet_addr2name4(dst_ip, 1),
      	dst_prt);
 
-	sleep(2);
+	//sleep(2);
 }
 
 void 
@@ -102,7 +111,7 @@ recv_packet()
 	pcap_t *handle;
 	char error_buffer[PCAP_ERRBUF_SIZE];
 	struct bpf_program filter;
-	char *filter_exp = "";
+	char *filter_exp = "tcp port 3306";
 	bpf_u_int32 subnet_mask, ip;
 
 	if (pcap_lookupnet(dev, &ip, &subnet_mask, error_buffer) == -1)
@@ -125,19 +134,20 @@ recv_packet()
 		fprintf(stderr, "Bad filter - %s\n", pcap_geterr(handle));
 		exit(EXIT_FAILURE);
 	}
-	
+
 	if(pcap_setfilter(handle, &filter) == -1)
 	{
 		fprintf(stderr, "setting filter - %s\n", pcap_geterr(handle));
 		exit(EXIT_FAILURE);
 	}
+	
 
-	pcap_loop(handle, 0, my_handler, NULL);
+	pcap_loop(handle, -1, my_handler, NULL);
 
 }
 
 void
 my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packer)
 {
-	
+	printf("do it");
 }
