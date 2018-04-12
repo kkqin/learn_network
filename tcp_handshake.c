@@ -3,8 +3,14 @@
 #include <pcap.h>
 #include <pthread.h> 
 
+struct _Pass_
+{
+	libnet_t *l; 
+	unsigned short src_prt;
+};
+
 void 
-recv_packet();
+recv_packet(void* ptr);
 
 void
 my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packer);
@@ -79,8 +85,12 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
+	struct _Pass_ *para = (struct _Pass_*)malloc(sizeof(struct _Pass_));
+	para->l = l;
+	para->src_prt = src_prt;
+	
 	pthread_t recv;
-	if(pthread_create(&recv, NULL, recv_packet, NULL) == -1)
+	if(pthread_create(&recv, NULL, recv_packet, (void*)para) == -1)
 	{
 		fprintf(stderr, "pthread_create() error\n");
 		exit(EXIT_FAILURE);
@@ -105,13 +115,13 @@ main(int argc, char **argv)
 }
 
 void 
-recv_packet()
+recv_packet(void* ptr)
 {
 	char *dev = "eth0";
 	pcap_t *handle;
 	char error_buffer[PCAP_ERRBUF_SIZE];
 	struct bpf_program filter;
-	char *filter_exp = "tcp port 3306";
+	char *filter_exp = "tcp";
 	bpf_u_int32 subnet_mask, ip;
 
 	if (pcap_lookupnet(dev, &ip, &subnet_mask, error_buffer) == -1)
@@ -140,14 +150,21 @@ recv_packet()
 		fprintf(stderr, "setting filter - %s\n", pcap_geterr(handle));
 		exit(EXIT_FAILURE);
 	}
-	
 
-	pcap_loop(handle, -1, my_handler, NULL);
+	struct _Pass_* st = (struct _Pass_*)ptr;
+	pcap_loop(handle, 1, my_handler, (u_char*)st);
 
 }
 
 void
-my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packer)
+my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 {
-	printf("do it");
+	printf("Packet capture length: %d\n", header->caplen);
+	printf("Packet total length: %d\n", header->len);
+
+	void** arg_arr = (void**)args;
+	struct _Pass_ * para = (struct _Pass_ *)arg_arr;
+	printf("src prt :%d\n", ntohs(para->src_prt));
 }
+
+
