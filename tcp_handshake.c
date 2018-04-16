@@ -3,10 +3,14 @@
 #include <pcap.h>
 #include <pthread.h> 
 
-struct _Pass_
+
+struct _DataInfo_
 {
-	libnet_t *l; 
+	libnet_t *l;
 	unsigned short src_prt;
+	unsigned short dst_prt;
+	unsigned long src_ip; 
+	unsigned long dst_ip;
 };
 
 void 
@@ -14,6 +18,9 @@ recv_packet(void* ptr);
 
 void
 my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packer);
+
+libnet_t* 
+datagram(libnet_t * l, unsigned short src_prt, unsigned short dsc_prt, unsigned long src_ip, unsigned long dst_ip);
 
 int 
 main(int argc, char **argv)
@@ -43,51 +50,14 @@ main(int argc, char **argv)
 
 	libnet_seed_prand(l);
 
-	t = libnet_build_tcp(
-			src_prt	= libnet_get_prand(LIBNET_PRu16), 	/* source port */ 
-			dst_prt,					/* destination port */
-			libnet_get_prand(LIBNET_PRu32),			/* sequence number */
-			0,						/* acknowledgement num */
-			TH_SYN,						/* control flags */
-			libnet_get_prand(LIBNET_PRu16),			/* window size */
-			0,						/* checksum */
-			0,						/* urgent pointer */
-			LIBNET_TCP_H,					/* TCP packet size */
-			NULL,						/* payload */
-			0,						/* payload size */
-			l,						/* libnet handle */
-			0);						/* libnet id */
-
-	if(t == -1)
-	{
-		fprintf(stderr, "Can't build TCP header: %s\n", libnet_geterror(l));
-		exit(EXIT_FAILURE);
-	}
-
-	t = libnet_build_ipv4(
-			LIBNET_TCP_H + LIBNET_IPV4_H, 			/* length */
-			0,						/* TOS */
-			libnet_get_prand(LIBNET_PRu16),			/* IP ID */
-			0,						/* IP Frag */
-			libnet_get_prand(LIBNET_PR8),			/* TTL */
-			IPPROTO_TCP,					/* protocol */
-			0,						/* checksum */
-			src_ip = inet_addr(argv[3]),			/* source IP */
-			dst_ip,						/* destination IP */
-			NULL,						/* payload */
-			0,						/* payload size */
-			l,						/* libnet handle */
-			0);						/* libnet id */
-
-	if(t == -1)
-	{
-		fprintf(stderr, "Can't build IP header: %s\n", libnet_geterror(l));
-		exit(EXIT_FAILURE);
-	}
-
-	struct _Pass_ *para = (struct _Pass_*)malloc(sizeof(struct _Pass_));
+	datagram(l, src_prt = libnet_get_prand(LIBNET_PRu16), dst_prt, src_ip= inet_addr(argv[3]), dst_ip);
+	
+	struct _DataInfo_ *para = (struct _DataInfo_*)malloc(sizeof(struct _DataInfo_));
 	para->l = l;
 	para->src_prt = src_prt;
+	para->dst_prt = dst_prt;
+	para->src_ip = src_ip;
+	para->dst_ip = dst_ip;
 	
 	pthread_t recv;
 	if(pthread_create(&recv, NULL, recv_packet, (void*)para) == -1)
@@ -163,8 +133,58 @@ my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	printf("Packet total length: %d\n", header->len);
 
 	void** arg_arr = (void**)args;
-	struct _Pass_ * para = (struct _Pass_ *)arg_arr;
-	printf("src prt :%d\n", ntohs(para->src_prt));
+	struct _DataInfo_ * para = (struct _DataInfo_ *)arg_arr;
+	//printf("src prt :%d\n", ntohs(para->src_prt));
+	libnet_t *l = para->l;
 }
 
+libnet_t* 
+datagram(libnet_t * l, unsigned short src_prt, unsigned short dst_prt, unsigned long src_ip, unsigned long dst_ip)
+{
+	libnet_ptag_t t;
+	
+	t = libnet_build_tcp(
+			src_prt,				 	/* source port */ 
+			dst_prt,					/* destination port */
+			libnet_get_prand(LIBNET_PRu32),			/* sequence number */
+			0,						/* acknowledgement num */
+			TH_SYN,						/* control flags */
+			libnet_get_prand(LIBNET_PRu16),			/* window size */
+			0,						/* checksum */
+			0,						/* urgent pointer */
+			LIBNET_TCP_H,					/* TCP packet size */
+			NULL,						/* payload */
+			0,						/* payload size */
+			l,						/* libnet handle */
+			0);						/* libnet id */
+
+	if(t == -1)
+	{
+		fprintf(stderr, "Can't build TCP header: %s\n", libnet_geterror(l));
+		exit(EXIT_FAILURE);
+	}
+
+	t = libnet_build_ipv4(
+			LIBNET_TCP_H + LIBNET_IPV4_H, 			/* length */
+			0,						/* TOS */
+			libnet_get_prand(LIBNET_PRu16),			/* IP ID */
+			0,						/* IP Frag */
+			libnet_get_prand(LIBNET_PR8),			/* TTL */
+			IPPROTO_TCP,					/* protocol */
+			0,						/* checksum */
+			src_ip,						/* source IP */
+			dst_ip,						/* destination IP */
+			NULL,						/* payload */
+			0,						/* payload size */
+			l,						/* libnet handle */
+			0);						/* libnet id */
+
+	if(t == -1)
+	{
+		fprintf(stderr, "Can't build IP header: %s\n", libnet_geterror(l));
+		exit(EXIT_FAILURE);
+	}
+
+	return l;	
+}
 
