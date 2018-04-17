@@ -3,6 +3,10 @@
 #include <errno.h>
 #include <pcap.h>
 #include <pthread.h> 
+#include <netinet/tcp.h>
+
+// Ethernet address are 6 bytes
+#define SIZE_ETHERNET 14
 
 struct _DataInfo_
 {
@@ -157,7 +161,15 @@ my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 		fprintf(stderr, "libnet_write: %s\n", libnet_geterror(l));
 		exit(EXIT_FAILURE);
 	}
-	
+
+ 	const struct ip * ip = (struct ip *) (packet + SIZE_ETHERNET);
+  	const struct tcphdr * tcp_hdr = (const struct tcphdr *)(packet + SIZE_ETHERNET + 20);
+
+   	unsigned int seq = htonl(tcp_hdr->th_seq);
+
+    	unsigned int ack = htonl(tcp_hdr->th_ack);
+
+     	fprintf(stdout,"seq %u ack %u", seq, ack); 
 	printf("ack send\n");
 }
 
