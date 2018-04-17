@@ -1,8 +1,8 @@
 #include <libnet.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <pcap.h>
 #include <pthread.h> 
-
 
 struct _DataInfo_
 {
@@ -20,7 +20,10 @@ void
 my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packer);
 
 libnet_t* 
-datagram(libnet_t * l, unsigned short src_prt, unsigned short dsc_prt, unsigned long src_ip, unsigned long dst_ip);
+datagram(libnet_t * l, unsigned short src_prt, unsigned short dsc_prt, unsigned long src_ip, unsigned long dst_ip, unsigned short control);
+
+char* 
+itoa(int val, int base);
 
 int 
 main(int argc, char **argv)
@@ -50,7 +53,7 @@ main(int argc, char **argv)
 
 	libnet_seed_prand(l);
 
-	datagram(l, src_prt = libnet_get_prand(LIBNET_PRu16), dst_prt, src_ip= inet_addr(argv[3]), dst_ip);
+	datagram(l, src_prt = libnet_get_prand(LIBNET_PRu16), dst_prt, src_ip= inet_addr(argv[3]), dst_ip, TH_SYN);
 	
 	struct _DataInfo_ *para = (struct _DataInfo_*)malloc(sizeof(struct _DataInfo_));
 	para->l = l;
@@ -87,11 +90,22 @@ main(int argc, char **argv)
 void 
 recv_packet(void* ptr)
 {
+	struct _DataInfo_* st = (struct _DataInfo_*)ptr;
+	
+       	char * srcP = itoa(ntohs(st->src_prt), 10);
 	char *dev = "eth0";
 	pcap_t *handle;
 	char error_buffer[PCAP_ERRBUF_SIZE];
 	struct bpf_program filter;
 	char *filter_exp = "tcp";
+
+	//printf("srcP: %s\n", srcP);
+	//char *filter_exp = (char*)malloc(strlen(exp) + strlen(srcP)); /*"tcp port xxxx"*/
+
+	//sprintf(filter_exp, "%s%s", exp, srcP);
+	//printf("filter_exp: %s\nsizeof(filter_exp): %d\n", filter_exp, strlen(filter_exp));
+	  
+
 	bpf_u_int32 subnet_mask, ip;
 
 	if (pcap_lookupnet(dev, &ip, &subnet_mask, error_buffer) == -1)
@@ -121,7 +135,6 @@ recv_packet(void* ptr)
 		exit(EXIT_FAILURE);
 	}
 
-	struct _Pass_* st = (struct _Pass_*)ptr;
 	pcap_loop(handle, 1, my_handler, (u_char*)st);
 
 }
@@ -134,12 +147,22 @@ my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 
 	void** arg_arr = (void**)args;
 	struct _DataInfo_ * para = (struct _DataInfo_ *)arg_arr;
-	//printf("src prt :%d\n", ntohs(para->src_prt));
+	
 	libnet_t *l = para->l;
+	datagram(l, para->src_prt, para->dst_prt, para->src_ip, para->dst_ip, TH_ACK);
+
+	int res = libnet_write(l);
+	if(res == -1)
+	{
+		fprintf(stderr, "libnet_write: %s\n", libnet_geterror(l));
+		exit(EXIT_FAILURE);
+	}
+	
+	printf("ack send\n");
 }
 
 libnet_t* 
-datagram(libnet_t * l, unsigned short src_prt, unsigned short dst_prt, unsigned long src_ip, unsigned long dst_ip)
+datagram(libnet_t * l, unsigned short src_prt, unsigned short dst_prt, unsigned long src_ip, unsigned long dst_ip, unsigned short control)
 {
 	libnet_ptag_t t;
 	
@@ -148,7 +171,7 @@ datagram(libnet_t * l, unsigned short src_prt, unsigned short dst_prt, unsigned 
 			dst_prt,					/* destination port */
 			libnet_get_prand(LIBNET_PRu32),			/* sequence number */
 			0,						/* acknowledgement num */
-			TH_SYN,						/* control flags */
+			control,					/* control flags */
 			libnet_get_prand(LIBNET_PRu16),			/* window size */
 			0,						/* checksum */
 			0,						/* urgent pointer */
@@ -188,3 +211,18 @@ datagram(libnet_t * l, unsigned short src_prt, unsigned short dst_prt, unsigned 
 	return l;	
 }
 
+char* 
+itoa(int val, int base){
+
+	static char buf[32] = {0};
+
+	int i = 30;
+
+	for(; val && i ; --i, val /= base)
+
+		buf[i] = "0123456789abcdef"[val % base];
+
+	return &buf[i+1];
+
+}
+	
