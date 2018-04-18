@@ -4,9 +4,17 @@
 #include <pcap.h>
 #include <pthread.h> 
 #include <netinet/tcp.h>
+#include "pktheader.h"
 
-// Ethernet address are 6 bytes
+/* ethernet headers are always exactly 14 bytes */
 #define SIZE_ETHERNET 14
+const struct sniff_ethernet *ethernet; /* The ethernet header */
+const struct sniff_ip *ip; /* The IP header */
+const struct sniff_tcp *tcp; /* The TCP header */
+const char *payload; /* Packet payload */
+
+unsigned int size_ip;
+unsigned int size_tcp;
 
 struct _DataInfo_
 {
@@ -15,6 +23,8 @@ struct _DataInfo_
 	unsigned short dst_prt;
 	unsigned long src_ip; 
 	unsigned long dst_ip;
+	unsigned int seq;
+	unsigned int ack;
 };
 
 void 
@@ -24,7 +34,7 @@ void
 my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packer);
 
 libnet_t* 
-datagram(libnet_t * l, unsigned short src_prt, unsigned short dsc_prt, unsigned long src_ip, unsigned long dst_ip, unsigned short control);
+datagram(libnet_t * l, unsigned short src_prt, unsigned short dst_prt, unsigned long src_ip, unsigned long dst_ip, unsigned short control, unsigned int seq, unsigned int ack);
 
 char* 
 itoa(int val, int base);
@@ -57,9 +67,16 @@ main(int argc, char **argv)
 
 	libnet_seed_prand(l);
 
-	datagram(l, src_prt = libnet_get_prand(LIBNET_PRu16), dst_prt, src_ip= inet_addr(argv[3]), dst_ip, TH_SYN);
-	
 	struct _DataInfo_ *para = (struct _DataInfo_*)malloc(sizeof(struct _DataInfo_));
+	
+	datagram(l, src_prt = libnet_get_prand(LIBNET_PRu16), 
+		    dst_prt, 
+		    src_ip= inet_addr(argv[3]), 
+		    dst_ip, 
+		    TH_SYN,
+		    para->seq = libnet_get_prand(LIBNET_PRu16),
+		    para->ack = 0);
+	
 	para->l = l;
 	para->src_prt = src_prt;
 	para->dst_prt = dst_prt;
@@ -103,13 +120,6 @@ recv_packet(void* ptr)
 	struct bpf_program filter;
 	char *filter_exp = "tcp";
 
-	//printf("srcP: %s\n", srcP);
-	//char *filter_exp = (char*)malloc(strlen(exp) + strlen(srcP)); /*"tcp port xxxx"*/
-
-	//sprintf(filter_exp, "%s%s", exp, srcP);
-	//printf("filter_exp: %s\nsizeof(filter_exp): %d\n", filter_exp, strlen(filter_exp));
-	  
-
 	bpf_u_int32 subnet_mask, ip;
 
 	if (pcap_lookupnet(dev, &ip, &subnet_mask, error_buffer) == -1)
@@ -151,38 +161,52 @@ my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 
 	void** arg_arr = (void**)args;
 	struct _DataInfo_ * para = (struct _DataInfo_ *)arg_arr;
-	
-	libnet_t *l = para->l;
-	datagram(l, para->src_prt, para->dst_prt, para->src_ip, para->dst_ip, TH_ACK);
+ 
+	ethernet = (struct sniff_ethernet*)(packet);
+	struct sniff_ip* ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);
+	size_ip = IP_HL(ip)*4;
+	if (size_ip < 20) {
+		printf("   * Invalid IP header length: %u bytes\n", size_ip);
+		exit(EXIT_FAILURE);
+	}
 
-	int res = libnet_write(l);
+	tcp = (struct sniff_tcp*)(packet + SIZE_ETHERNET + size_ip);
+	//printf("sizeof:%d\n", sizeof(struct sniff_tcp*));
+	size_tcp = TH_OFF(tcp)*4;
+	if (size_tcp < 20) {
+		printf("   * Invalid TCP header length: %u bytes\n", size_tcp);
+		exit(EXIT_FAILURE);
+	}
+	
+	payload = (u_char *)(packet + SIZE_ETHERNET + size_ip + size_tcp);;
+
+   	unsigned int seq = tcp->th_seq;
+	
+     	fprintf(stdout,"seq %x\n", seq); 
+	
+/*	libnet_t *l = para->l;
+	datagram(l, para->src_prt, para->dst_prt, para->src_ip, para->dst_ip, TH_ACK, para->seq, para->ack);
+
+	int res = 0;// = libnet_write(l);
 	if(res == -1)
 	{
 		fprintf(stderr, "libnet_write: %s\n", libnet_geterror(l));
 		exit(EXIT_FAILURE);
 	}
-
- 	const struct ip * ip = (struct ip *) (packet + SIZE_ETHERNET);
-  	const struct tcphdr * tcp_hdr = (const struct tcphdr *)(packet + SIZE_ETHERNET + 20);
-
-   	unsigned int seq = htonl(tcp_hdr->th_seq);
-
-    	unsigned int ack = htonl(tcp_hdr->th_ack);
-
-     	fprintf(stdout,"seq %u ack %u", seq, ack); 
+*/
 	printf("ack send\n");
 }
 
 libnet_t* 
-datagram(libnet_t * l, unsigned short src_prt, unsigned short dst_prt, unsigned long src_ip, unsigned long dst_ip, unsigned short control)
+datagram(libnet_t * l, unsigned short src_prt, unsigned short dst_prt, unsigned long src_ip, unsigned long dst_ip, unsigned short control, unsigned int seq, unsigned int ack)
 {
 	libnet_ptag_t t;
 	
 	t = libnet_build_tcp(
 			src_prt,				 	/* source port */ 
 			dst_prt,					/* destination port */
-			libnet_get_prand(LIBNET_PRu32),			/* sequence number */
-			0,						/* acknowledgement num */
+			seq,						/* sequence number */
+			ack,						/* acknowledgement num */
 			control,					/* control flags */
 			libnet_get_prand(LIBNET_PRu16),			/* window size */
 			0,						/* checksum */
@@ -231,10 +255,7 @@ itoa(int val, int base){
 	int i = 30;
 
 	for(; val && i ; --i, val /= base)
-
 		buf[i] = "0123456789abcdef"[val % base];
 
 	return &buf[i+1];
-
 }
-	
