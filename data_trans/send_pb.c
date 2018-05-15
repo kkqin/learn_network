@@ -4,6 +4,8 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <malloc.h>
+#include <string.h>
+#include <arpa/inet.h>
 
 void protocol_send(int sockfd);
 
@@ -37,21 +39,23 @@ protocol_send(int sockfd)
 	char *head_ptr;
 
 	struct PBReqHeader_ *p_header = (struct PBReqHeader_ *)malloc(sizeof(struct PBReqHeader_));
-	p_header->m_header.m_cmdNum = htons(10000);
+	p_header->m_header.m_cmdNum = 10000;
 	p_header->m_header.m_cmdSeq = 0;
 	p_header->m_header.m_reserve = 0;
 	p_header->m_srcId = 0;
 	p_header->m_session = 0;
 
-	Trans__One *s_data = (Trans__One *)malloc(sizeof(Trans__One));
-	s_data->a = 123;
-	s_data->b = 345;
-	s_data->c = "hi stupid";
+	Trans__One s_data = TRANS__ONE__INIT;
+	s_data.userid = 123;
+	s_data.roleid = 345;
+	s_data.usertoken = 342341;
 	
-	size_t pack_size = trans__one__get_packed_size( s_data );
+	size_t pack_size = trans__one__get_packed_size(&s_data);
 	void * buf;
 	buf = malloc(pack_size);
-	trans__one__pack( s_data, buf );
+	trans__one__pack( &s_data, buf );
+
+	p_header->m_header.m_msgLen = sizeof(struct PBReqHeader_) + pack_size;
 
 	head_ptr = (char *)malloc(sizeof(struct PBReqHeader_) + pack_size);
 	memcpy(head_ptr, p_header, sizeof(struct PBReqHeader_));
