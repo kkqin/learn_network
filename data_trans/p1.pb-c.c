@@ -55,46 +55,46 @@ void   trans__one__free_unpacked
 static const ProtobufCFieldDescriptor trans__one__field_descriptors[3] =
 {
   {
-    "a",
+    "userID",
     1,
     PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_INT32,
+    PROTOBUF_C_TYPE_UINT32,
     0,   /* quantifier_offset */
-    offsetof(Trans__One, a),
+    offsetof(Trans__One, userid),
     NULL,
     NULL,
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "b",
+    "roleID",
     2,
     PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_INT32,
+    PROTOBUF_C_TYPE_UINT32,
     0,   /* quantifier_offset */
-    offsetof(Trans__One, b),
+    offsetof(Trans__One, roleid),
     NULL,
     NULL,
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
   {
-    "c",
+    "userToken",
     3,
     PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_STRING,
+    PROTOBUF_C_TYPE_UINT32,
     0,   /* quantifier_offset */
-    offsetof(Trans__One, c),
+    offsetof(Trans__One, usertoken),
     NULL,
-    &protobuf_c_empty_string,
+    NULL,
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
 };
 static const unsigned trans__one__field_indices_by_name[] = {
-  0,   /* field[0] = a */
-  1,   /* field[1] = b */
-  2,   /* field[2] = c */
+  1,   /* field[1] = roleID */
+  0,   /* field[0] = userID */
+  2,   /* field[2] = userToken */
 };
 static const ProtobufCIntRange trans__one__number_ranges[1 + 1] =
 {

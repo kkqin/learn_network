@@ -26,13 +26,13 @@ typedef struct _Trans__One Trans__One;
 struct  _Trans__One
 {
   ProtobufCMessage base;
-  int32_t a;
-  int32_t b;
-  char *c;
+  uint32_t userid;
+  uint32_t roleid;
+  uint32_t usertoken;
 };
 #define TRANS__ONE__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&trans__one__descriptor) \
-    , 0, 0, (char *)protobuf_c_empty_string }
+    , 0, 0, 0 }
 
 
 /* Trans__One methods */

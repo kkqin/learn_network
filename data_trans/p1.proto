@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package trans;
 message One {
-	int32 a = 1;
-	int32 b = 2;
-	string c = 3;
+	uint32 userID = 1;
+	uint32 roleID = 2;
+	uint32 userToken = 3;
 }

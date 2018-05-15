@@ -3,6 +3,7 @@
 
 struct PBCmdHeader_
 {
+	unsigned int m_msgLen;
 	unsigned int m_cmdNum;
 	unsigned int m_cmdSeq;
 	unsigned int m_reserve;
