@@ -4,7 +4,7 @@
 #include <pcap.h>
 #include <pthread.h> 
 #include <netinet/tcp.h>
-#include "pktheader.h"
+#include "../pktheader.h"
 
 /* ethernet headers are always exactly 14 bytes */
 #define SIZE_ETHERNET 14
@@ -114,7 +114,8 @@ recv_packet(void* ptr)
 	struct _DataInfo_* st = (struct _DataInfo_*)ptr;
 	
        	char * srcP = itoa(ntohs(st->src_prt), 10);
-	char *dev = "eth0";
+	//char *dev = "eth0";
+	char *dev = NULL;
 	pcap_t *handle;
 	char error_buffer[PCAP_ERRBUF_SIZE];
 	struct bpf_program filter;
@@ -122,13 +123,17 @@ recv_packet(void* ptr)
 
 	bpf_u_int32 subnet_mask, ip;
 
-	if (pcap_lookupnet(dev, &ip, &subnet_mask, error_buffer) == -1)
+	if ((dev = libnet_getdevice(st->l)) == NULL) {
+		fprintf(stderr, "Device is NULL. Packet capture may be broken.\n");
+	}
+
+	/*if (pcap_lookupnet(dev, &ip, &subnet_mask, error_buffer) == -1)
        	{
 		fprintf(stderr, "could not get information for device: %s\n", dev);
 		ip = 0;
 		subnet_mask = 0;
 		exit(EXIT_FAILURE);
-	}
+	}*/
 	
 	handle = pcap_open_live(dev, BUFSIZ, 1, 1000, error_buffer);
 	if(handle == NULL)
@@ -171,7 +176,7 @@ my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	}
 
 	tcp = (struct sniff_tcp*)(packet + SIZE_ETHERNET + size_ip);
-	//printf("sizeof:%d\n", sizeof(struct sniff_tcp*));
+	printf("sizeof:%d\n", sizeof(struct sniff_tcp*));
 	size_tcp = TH_OFF(tcp)*4;
 	if (size_tcp < 20) {
 		printf("   * Invalid TCP header length: %u bytes\n", size_tcp);
@@ -184,16 +189,16 @@ my_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packet)
 	
      	fprintf(stdout,"seq %x\n", seq); 
 	
-/*	libnet_t *l = para->l;
+	libnet_t *l = para->l;
 	datagram(l, para->src_prt, para->dst_prt, para->src_ip, para->dst_ip, TH_ACK, para->seq, para->ack);
 
-	int res = 0;// = libnet_write(l);
+	int res = libnet_write(l);
 	if(res == -1)
 	{
 		fprintf(stderr, "libnet_write: %s\n", libnet_geterror(l));
 		exit(EXIT_FAILURE);
 	}
-*/
+
 	printf("ack send\n");
 }
 
